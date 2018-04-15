@@ -1,9 +1,12 @@
 package com.wzm.biliimage;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -22,6 +25,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -134,6 +138,7 @@ public class MainActivity extends AppCompatActivity {
         mBt_save.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                verifyStoragePermissions();
                 saveBitmap(bitmap);
             }
         });
@@ -273,28 +278,48 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "图片为空", Toast.LENGTH_SHORT).show();
             return;
         }
-        String filePath = Environment.getExternalStorageDirectory()
-                + File.separator;
-        File f = new File(filePath, "Av" + Number + ".png");
-        if (f.exists()) {
-            f.delete();
-        }
         try {
-            f.createNewFile();
-            FileOutputStream out = new FileOutputStream(f);
-            bm.compress(Bitmap.CompressFormat.PNG, 90, out);
-            out.flush();
-            out.close();
+            String SAVE_PIC_PATH = Environment.getExternalStorageState().equalsIgnoreCase(Environment.MEDIA_MOUNTED)
+                    ? Environment.getExternalStorageDirectory().getAbsolutePath() : "/mnt/sdcard";//保存到SD卡
+            String SAVE_REAL_PATH = SAVE_PIC_PATH + "/BiliImage/";//保存的确切位置
+
+            File foder = new File(SAVE_REAL_PATH);
+            if (!foder.exists()) {
+                foder.mkdirs();
+            }
+            File f = new File(SAVE_REAL_PATH, "Av" + Number + ".png");
+            if (!f.exists()) {
+                f.createNewFile();
+            }
+            BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(f));
+            bm.compress(Bitmap.CompressFormat.PNG, 90, bos);
+            bos.flush();
+            bos.close();
+            Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+            Uri uri = Uri.fromFile(f);
+            intent.setData(uri);
+            this.sendBroadcast(intent);
             Toast.makeText(this, "保存成功", Toast.LENGTH_SHORT).show();
         } catch (IOException e) {
             e.printStackTrace();
         }
-        Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-        Uri uri = Uri.fromFile(f);
-        intent.setData(uri);
-        this.sendBroadcast(intent);
 
     }
+
+    public void verifyStoragePermissions() {
+        if (Build.VERSION.SDK_INT >= 23) {
+            int REQUEST_CODE_CONTACT = 101;
+            String[] permissions = {Manifest.permission.WRITE_EXTERNAL_STORAGE};
+            for (String str : permissions) {
+                if (this.checkSelfPermission(str) != PackageManager.PERMISSION_GRANTED) {
+                    //申请权限
+                    this.requestPermissions(permissions, REQUEST_CODE_CONTACT);
+                    return;
+                }
+            }
+        }
+    }
+
 
     private String getHTML(String url) throws Exception {
         URL uri = new URL(url);
